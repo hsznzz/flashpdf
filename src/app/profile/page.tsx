@@ -25,9 +25,11 @@ import {
   Bell,
   Shield,
   Trash2,
-  AlertTriangle
+  AlertTriangle,
+  Upload,
+  Camera
 } from "lucide-react"
-import { useState } from "react"
+import { useState, useRef } from "react"
 
 export default function ProfilePage() {
   const [isEditing, setIsEditing] = useState(false)
@@ -37,6 +39,10 @@ export default function ProfilePage() {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false)
   const [deleteConfirmation, setDeleteConfirmation] = useState("")
+  const [selectedImage, setSelectedImage] = useState<File | null>(null)
+  const [imagePreview, setImagePreview] = useState<string | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const editFileInputRef = useRef<HTMLInputElement>(null)
 
   // Mock user data - in a real app this would come from your auth system
   const [user, setUser] = useState({
@@ -106,6 +112,9 @@ export default function ProfilePage() {
   const handleSaveProfile = () => {
     setUser(prev => ({ ...prev, ...editForm }))
     setIsEditing(false)
+    // Clear any selected image from edit mode
+    setSelectedImage(null)
+    setImagePreview(null)
   }
 
   const handleCancelEdit = () => {
@@ -115,6 +124,9 @@ export default function ProfilePage() {
       bio: user.bio
     })
     setIsEditing(false)
+    // Clear any selected image from edit mode
+    setSelectedImage(null)
+    setImagePreview(null)
   }
 
   const handlePasswordChange = () => {
@@ -145,6 +157,62 @@ export default function ProfilePage() {
     alert("Account deleted successfully!")
     // Redirect to home page or login page
     window.location.href = "/"
+  }
+
+  const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (file) {
+      // Validate file type
+      if (!file.type.startsWith('image/')) {
+        alert('Please select an image file')
+        return
+      }
+      
+      // Validate file size (max 5MB)
+      if (file.size > 5 * 1024 * 1024) {
+        alert('Image size must be less than 5MB')
+        return
+      }
+
+      setSelectedImage(file)
+      
+      // Create preview URL
+      const reader = new FileReader()
+      reader.onload = (e) => {
+        setImagePreview(e.target?.result as string)
+      }
+      reader.readAsDataURL(file)
+    }
+  }
+
+  const handleSaveImage = () => {
+    if (selectedImage && imagePreview) {
+      // Here you would typically upload the image to your server
+      // and get back a URL to store in the user's profile
+      setUser(prev => ({ ...prev, avatar: imagePreview }))
+      setSelectedImage(null)
+      setImagePreview(null)
+      alert('Profile image updated successfully!')
+    }
+  }
+
+  const handleRemoveImage = () => {
+    setSelectedImage(null)
+    setImagePreview(null)
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ''
+    }
+    if (editFileInputRef.current) {
+      editFileInputRef.current.value = ''
+    }
+  }
+
+  const triggerFileInput = () => {
+    fileInputRef.current?.click()
+  }
+
+  const triggerEditFileInput = () => {
+    editFileInputRef.current?.click()
   }
 
   return (
@@ -197,6 +265,74 @@ export default function ProfilePage() {
           {showSettings ? (
             /* Settings Section */
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Profile Image Settings */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center">
+                    <Camera className="w-5 h-5 mr-2" />
+                    Profile Image
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="flex items-center space-x-4">
+                    <div className="relative">
+                      <Avatar className="w-20 h-20">
+                        <AvatarImage 
+                          src={imagePreview || user.avatar} 
+                          alt={user.name} 
+                        />
+                        <AvatarFallback className="text-lg">
+                          {user.name.split(' ').map(n => n[0]).join('')}
+                        </AvatarFallback>
+                      </Avatar>
+                      <button
+                        onClick={triggerFileInput}
+                        className="absolute -bottom-1 -right-1 w-6 h-6 bg-orange-500 rounded-full flex items-center justify-center hover:bg-orange-600 transition-colors"
+                      >
+                        <Camera className="w-3 h-3 text-white" />
+                      </button>
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-sm text-gray-600 mb-2">
+                        Upload a new profile image. Supported formats: JPG, PNG, GIF. Max size: 5MB.
+                      </p>
+                      <div className="flex space-x-2">
+                        <Button onClick={triggerFileInput} size="sm" variant="outline">
+                          <Upload className="w-4 h-4 mr-2" />
+                          Choose Image
+                        </Button>
+                        {selectedImage && (
+                          <>
+                            <Button onClick={handleSaveImage} size="sm" className="bg-green-600 hover:bg-green-700">
+                              <Save className="w-4 h-4 mr-2" />
+                              Save
+                            </Button>
+                            <Button onClick={handleRemoveImage} size="sm" variant="outline">
+                              <X className="w-4 h-4 mr-2" />
+                              Cancel
+                            </Button>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    onChange={handleImageUpload}
+                    className="hidden"
+                  />
+                  {selectedImage && (
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                      <p className="text-sm text-blue-800">
+                        <strong>Selected:</strong> {selectedImage.name} ({(selectedImage.size / 1024 / 1024).toFixed(2)} MB)
+                      </p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
               {/* Account Settings */}
               <Card>
                 <CardHeader>
@@ -220,8 +356,10 @@ export default function ProfilePage() {
                       id="email" 
                       type="email" 
                       value={editForm.email} 
-                      onChange={(e) => setEditForm(prev => ({ ...prev, email: e.target.value }))}
+                      disabled
+                      className="bg-gray-100 cursor-not-allowed"
                     />
+                    <p className="text-xs text-gray-500 mt-1">Email cannot be changed at this time</p>
                   </div>
                   <div>
                     <Label htmlFor="bio">Bio</Label>
@@ -421,7 +559,7 @@ export default function ProfilePage() {
                           value={deleteConfirmation}
                           onChange={(e) => setDeleteConfirmation(e.target.value)}
                           placeholder="Type DELETE to confirm"
-                          className="border-red-300 focus:border-red-500"
+                          className="border-red-300 focus:border-red-500 focus:ring-red-500"
                         />
                       </div>
                       <div className="flex space-x-3">
@@ -465,12 +603,25 @@ export default function ProfilePage() {
                 <Card>
                   <CardContent className="p-6">
                     <div className="text-center mb-6">
-                      <Avatar className="w-24 h-24 mx-auto mb-4">
-                        <AvatarImage src={user.avatar} alt={user.name} />
-                        <AvatarFallback className="text-2xl">
-                          {user.name.split(' ').map(n => n[0]).join('')}
-                        </AvatarFallback>
-                      </Avatar>
+                      <div className="relative inline-block mb-4">
+                        <Avatar className="w-24 h-24">
+                          <AvatarImage 
+                            src={imagePreview || user.avatar} 
+                            alt={user.name} 
+                          />
+                          <AvatarFallback className="text-2xl">
+                            {user.name.split(' ').map(n => n[0]).join('')}
+                          </AvatarFallback>
+                        </Avatar>
+                        {isEditing && (
+                          <button
+                            onClick={triggerEditFileInput}
+                            className="absolute -bottom-1 -right-1 w-8 h-8 bg-orange-500 rounded-full flex items-center justify-center hover:bg-orange-600 transition-colors shadow-lg"
+                          >
+                            <Camera className="w-4 h-4 text-white" />
+                          </button>
+                        )}
+                      </div>
                       {isEditing ? (
                         <div className="space-y-3">
                           <Input 
@@ -480,9 +631,10 @@ export default function ProfilePage() {
                           />
                           <Input 
                             value={editForm.email}
-                            onChange={(e) => setEditForm(prev => ({ ...prev, email: e.target.value }))}
-                            className="text-center text-sm"
+                            disabled
+                            className="text-center text-sm bg-gray-100 cursor-not-allowed"
                           />
+                          <p className="text-xs text-gray-500">Email cannot be changed</p>
                         </div>
                       ) : (
                         <>
@@ -508,7 +660,33 @@ export default function ProfilePage() {
                           {user.bio}
                         </p>
                       )}
+                      {isEditing && selectedImage && (
+                        <div className="mt-4 space-y-2">
+                          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                            <p className="text-sm text-blue-800">
+                              <strong>Selected:</strong> {selectedImage.name} ({(selectedImage.size / 1024 / 1024).toFixed(2)} MB)
+                            </p>
+                          </div>
+                          <div className="flex space-x-2 justify-center">
+                            <Button onClick={handleSaveImage} size="sm" className="bg-green-600 hover:bg-green-700">
+                              <Save className="w-4 h-4 mr-2" />
+                              Save Image
+                            </Button>
+                            <Button onClick={handleRemoveImage} size="sm" variant="outline">
+                              <X className="w-4 h-4 mr-2" />
+                              Cancel
+                            </Button>
+                          </div>
+                        </div>
+                      )}
                     </div>
+                    <input
+                      ref={editFileInputRef}
+                      type="file"
+                      accept="image/*"
+                      onChange={handleImageUpload}
+                      className="hidden"
+                    />
                   </CardContent>
                 </Card>
               </div>
